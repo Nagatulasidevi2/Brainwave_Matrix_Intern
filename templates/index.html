@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phishing Link Scanner</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+        .container {
+            max-width: 800px;
+        }
+        .result-box {
+            border-left-width: 6px;
+            border-style: solid;
+        }
+        .status-safe { border-color: #10B981; } /* Green */
+        .status-suspicious { border-color: #F59E0B; } /* Amber */
+        .status-malicious { border-color: #EF4444; } /* Red */
+        .status-invalid, .status-error { border-color: #6B7280; } /* Gray */
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="container bg-white p-8 rounded-xl shadow-lg w-full">
+        <h1 class="text-3xl font-bold text-gray-800 text-center mb-6">
+            Phishing Link Scanner
+        </h1>
+
+        <div class="mb-6">
+            <label for="urlInput" class="block text-gray-700 text-sm font-semibold mb-2">
+                Enter URL to Scan:
+            </label>
+            <input
+                type="text"
+                id="urlInput"
+                class="shadow-sm appearance-none border rounded-lg w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="e.g., https://www.example.com/login"
+                aria-label="URL to scan"
+            />
+            <button
+                id="scanButton"
+                class="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition duration-300 ease-in-out transform hover:scale-105"
+            >
+                Scan URL
+            </button>
+        </div>
+
+        <div id="loadingIndicator" class="hidden text-center text-blue-600 font-medium mb-4">
+            Scanning... Please wait.
+        </div>
+
+        <div id="results" class="result-box p-4 rounded-lg mt-6 shadow-md hidden">
+            <h2 class="text-xl font-semibold text-gray-800 mb-3">Scan Results:</h2>
+            <p class="text-lg font-bold mb-2">Status: <span id="statusText" class="ml-2"></span></p>
+            <p id="messageText" class="text-gray-700 mb-4"></p>
+            <div id="detailsList" class="text-sm text-gray-600 space-y-1">
+                <!-- Scan details will be inserted here -->
+            </div>
+        </div>
+
+        <div id="errorMessage" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mt-6" role="alert">
+            <strong class="font-bold">Error!</strong>
+            <span class="block sm:inline" id="errorContent"></span>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('scanButton').addEventListener('click', async () => {
+            const urlInput = document.getElementById('urlInput');
+            const url = urlInput.value.trim();
+            const resultsDiv = document.getElementById('results');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const errorMessageDiv = document.getElementById('errorMessage');
+
+            // Reset previous results and errors
+            resultsDiv.classList.add('hidden');
+            errorMessageDiv.classList.add('hidden');
+            resultsDiv.classList.remove('status-safe', 'status-suspicious', 'status-malicious', 'status-invalid', 'status-error');
+
+            if (!url) {
+                errorMessageDiv.classList.remove('hidden');
+                document.getElementById('errorContent').textContent = 'Please enter a URL to scan.';
+                return;
+            }
+
+            loadingIndicator.classList.remove('hidden');
+            
+            try {
+                const response = await fetch('/scan', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    loadingIndicator.classList.add('hidden');
+                    resultsDiv.classList.remove('hidden');
+
+                    const statusText = document.getElementById('statusText');
+                    const messageText = document.getElementById('messageText');
+                    const detailsList = document.getElementById('detailsList');
+
+                    statusText.textContent = data.status;
+                    messageText.textContent = data.message;
+                    detailsList.innerHTML = ''; // Clear previous details
+
+                    let statusClass = '';
+                    switch (data.status) {
+                        case 'SAFE':
+                            statusText.classList.add('text-green-600');
+                            statusClass = 'status-safe';
+                            break;
+                        case 'SUSPICIOUS':
+                            statusText.classList.add('text-amber-600');
+                            statusClass = 'status-suspicious';
+                            break;
+                        case 'MALICIOUS':
+                            statusText.classList.add('text-red-600');
+                            statusClass = 'status-malicious';
+                            break;
+                        case 'INVALID':
+                            statusText.classList.add('text-gray-600');
+                            statusClass = 'status-invalid';
+                            break;
+                        case 'ERROR':
+                            statusText.classList.add('text-gray-600');
+                            statusClass = 'status-error';
+                            break;
+                    }
+                    resultsDiv.classList.add(statusClass);
+
+                    if (data.details && Array.isArray(data.details)) {
+                        data.details.forEach(detail => {
+                            const p = document.createElement('p');
+                            p.textContent = detail;
+                            detailsList.appendChild(p);
+                        });
+                    }
+                } else {
+                    throw new Error(data.message || 'Server responded with an error.');
+                }
+            } catch (error) {
+                loadingIndicator.classList.add('hidden');
+                errorMessageDiv.classList.remove('hidden');
+                document.getElementById('errorContent').textContent = `Failed to scan URL: ${error.message}`;
+                console.error("Fetch error:", error);
+            }
+        });
+    </script>
+</body>
+</html>
